@@ -1,0 +1,284 @@
+<script>
+                    // <![CDATA[   
+                    var novo = document.getElementById('btNovo');
+                    var mymap = L.map('mapid').setView([-19.508020154916768, -40.345916748046875], 8.3);
+                    var pontos;
+                    var agencia = $("[id='corpo:otIdAg']").val();
+                    var id,status,nome,descricao,pessoaj,bairro,cord_x,cord_y,tp_lider,agencia,data;
+                    $("[id='corpo:otCordpol']").attr('value','');
+                    var id_sel = 0;
+                    var url = window.location.href ;
+                    url = url.split("lideres/",1) + 'lideres/area';
+                    var edit_pol = false;
+                    cancelar();
+                    carregaPontos();
+                    function LeafletHelper() {
+//                        carregaPontos();
+                        var baseLayer = L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoiYXVyZXppYW5vIiwiYSI6ImNrZThvNjc5dTF5bXIyenA4OWh1dDhlaGIifQ.eUFSSCbpeQaaYL4cPjHIdA', {
+                                maxZoom: 18,
+                                attribution: '',
+                                id: 'mapbox/streets-v11',
+                                tileSize: 512,
+                                zoomOffset: -1
+                        }).addTo(mymap);
+
+
+
+                        var baseLayers = {
+                                "Líderes" : baseLayer//,
+//                                "Confronto" : basePoligono
+                            };
+                        this.mymap = mymap;    
+//                            this.BaseLayers = {
+//                                    "Camadas": baseLayer,
+//                                    "Poligono": basePoligono
+//                                };    
+                        this.LayersControl = L.control.layers(baseLayers).addTo(mymap);
+                        this.Overlays = [];
+                        this.AddOverlay = function (layerOptions, markers) {
+                            var zIndex = this.Overlays.length;
+                            var layerGroup = L.layerGroup(markers).addTo(mymap);
+                            this.LayersControl.addOverlay(layerGroup, layerOptions.title);
+                            this.Overlays.push({
+                                zIndex: zIndex,
+                                LeafletLayer: layerGroup,
+                                Options: layerOptions,
+                                InitialMarkers: markers,
+                                Title: layerOptions.title
+                            });
+                            return layerGroup;
+                        };
+                        this.RemoveOverlays = function () {
+
+                            for (var i = 0, len = this.Overlays.length; i < len; i++) {
+                                var layer = this.Overlays[i].LeafletLayer;
+                                this.map.removeLayer(layer);
+                                this.LayersControl.removeLayer(layer);
+                            }
+                            this.Overlays = [];
+                        };
+                        this.SetZIndexByTitle = function (title, zIndex) {
+
+                            var _this = this;
+
+                            // remove overlays, order them, and re-add in order
+                            var overlays = this.Overlays; // save reference
+                            this.RemoveOverlays();
+                            this.Overlays = overlays; // restore reference
+
+                            // filter overlays and set zIndex (may be multiple if dup title)
+                            overlays.forEach(function (item, idx, arr) {
+                                if (item.Title === title) {
+                                    item.zIndex = zIndex;
+                                }
+                            });
+
+                            // sort by zIndex ASC
+                            overlays.sort(function (a, b) {
+                                return a.zIndex - b.zIndex;
+                            });
+
+                            // re-add overlays to map and layers control
+                            overlays.forEach(function (item, idx, arr) {
+                                item.LeafletLayer.addTo(_this.mymap);
+                                _this.LayersControl.addOverlay(item.LeafletLayer, item.Title);
+                            });
+                        };
+                    }
+                    window.helper = new LeafletHelper();
+                    var editableLayers = new L.FeatureGroup();
+                    mymap.addLayer(editableLayers);
+
+                    var drawPluginOptions = {
+                        position: 'topright',
+                        draw: {
+                                polygon: {
+                                        shapeOptions: {
+                                                color: 'purple'
+                                        },
+                                        allowIntersection: false,
+                                        drawError: {
+                                                color: 'orange',
+                                                timeout: 1000
+                                        },
+                                        showArea: true,
+                                        metric: false,
+                                        repeatMode: true
+
+                                },
+                                polyline: false //{
+//                                        shapeOptions: {
+//                                                color: 'red'
+//                                        }
+//                                }
+                                ,
+                                rect: false,//{
+//                                        shapeOptions: {
+//                                                color: 'green'
+//                                        }
+//                                },
+                                circle: false,//{
+//                                        shapeOptions: {
+//                                                color: 'steelblue'
+//                                        }
+//                                },
+                                marker:false// {
+//                                        icon: DrogaIcon
+//                                }
+                        }//,
+//                        edit: {
+//                                featureGroup: editableLayers//,
+//                                remove: true,
+//                                edit: true
+
+//                        }
+                    };
+
+                    // Inicialize o controle de desenho e passe para o FeatureGroup de camadas editáveis
+                    var drawControl = new L.Control.Draw(drawPluginOptions);
+                    mymap.addControl(drawControl);
+
+                    mymap.on('draw:created', function(e) {
+                        var type = e.layerType,
+                          layer = e.layer;  
+                        editableLayers.addLayer(layer);
+                        //adicionados
+                            var shape = layer.toGeoJSON();
+//                        var shape = layer.getLatLngs();
+                        var shape_for_db = JSON.stringify(shape);
+                        layer.bindPopup(shape_for_db);
+                        $("[id='corpo:otCordpol']").attr('value',shape_for_db);
+
+                    });
+//                    mymap.on('draw:edited',(e) => {
+//                        alert('editado');
+//                        layers = e.layers;
+////                        layers.eachLayer();
+//			var countOfEditedLayers = 0;
+//			layers.eachLayer(function(layer) {
+//                            countOfEditedLayers++;
+//                            editableLayers.addLayer(layer);
+//                            var shape = layer.getLatLngs();
+//                            var shape_for_db = JSON.stringify(shape);
+//                            layer.bindPopup(shape_for_db);
+//                            $("[id='corpo:otCordpol']").attr('value',shape_for_db);
+//			});
+//			console.log("Edited " + countOfEditedLayers + " layers");
+//                        
+//                    });
+//                    mymap.on('draw:editstart',(e) => {
+//                        alert('editando'); 
+//                        editableLayers.addLayer(e.layers);
+////                        layers.addTo(pontos);
+////                        layers.editing.enable();
+//                            
+//
+//                        
+//                    });
+//                    mymap.on('draw:editstop',(e) => {
+//                        alert('draw:editstop');
+//                        var layers = e.layers;
+//			var countOfEditedLayers = 0;
+//			layers.eachLayer(function(layer) {
+//                            countOfEditedLayers++;
+//                            editableLayers.addLayer(layer);
+//                            var shape = layer.getLatLngs();
+//                            var shape_for_db = JSON.stringify(shape);
+//                            layer.bindPopup(shape_for_db);
+//                            $("[id='corpo:otCordpol']").attr('value',shape_for_db);
+//			});
+//                        
+//                    });
+
+//                    mymap.on('draw:deletestart', function(e) {
+//                        $("[id='corpo:otCordpol']").attr('value','');
+//                        alert('oi');
+//                      });
+                    mymap.on('draw:deletestop', function(e) {
+                        $("[id='corpo:otCordpol']").attr('value','');
+                      });
+//                    mymap.on('draw:drawstop', function(e) {
+//                        alert('draw:drawstop');
+//                    });
+                    // on click, clear all layers
+                    document.getElementById('btdel').onclick = function(e) {
+                        editableLayers.clearLayers();
+                        $("[id='corpo:otCordpol']").attr('value','');
+                    };
+
+                    var popup = L.popup();
+                    var markers = new L.FeatureGroup();
+//                    var markerClusters = new L.markerClusterGroup();
+                    var linha = new L.FeatureGroup();
+                    var coords_pol = [];
+
+
+                    function plotar(id,descricao,json)
+                    { 
+                        var p = "<b>Id:</b> " + id 
+                                + "<br/><b>Descrição:</b> " + descricao;
+                        var db_for_shape = JSON.parse(json);
+                        var rout = L.geoJSON(db_for_shape);
+                        rout.bindPopup(p);
+//                        editableLayers.addLayer(rout).add(mymap);
+//                        pontos = editableLayers;
+                        pontos = rout;
+//                        mymap.addLayer(editableLayers);
+
+   
+                    }
+
+                    AddOverlays = function () {
+//                        helper.AddOverlay({title: "Linha"}, [linha]);
+                        helper.AddOverlay({title: "Teste"}, [editableLayers]);
+                    };
+
+                    AddOverlays();
+
+                    var z = helper.Overlays.length;
+
+                    ChangeZIndex = function () {
+                        helper.SetZIndexByTitle(helper.Overlays[0].Title, z++);
+                    };
+                        popup.remove();
+
+                    function carregaPontos(){
+                        
+                            id_sel = 2;
+                            $.get(url, //DEV
+                                {agencia : agencia, id_sel : id_sel},
+                                function(responseJson) {
+//                                    $.each(responseJson, function(i, areaJSON){
+//                                        plotar(areaJSON.id,
+//                                            areaJSON.descricao,
+//                                            areaJSON.json);
+                                            
+//                                    });  
+//                                }) 
+                                L.geoJson(responseJson, {
+                                    onEachFeature: onEachFeature
+                                 })
+                             })
+                                .fail(function() { // on failure
+                                    alert("falha na requisição");
+                                });
+                                
+ 
+ 
+                    }
+                    L.geoJson(pontos, {
+                        onEachFeature: onEachFeature
+                    });
+
+
+                    function onEachFeature(feature, layer) {
+                        editableLayers.addLayer(layer);
+                    }
+                    
+                    function cancelar()
+                    {
+                        $("[id='corpo:otCordpol']").attr('value','');
+                    }
+                    
+                    // ]]>
+                </script>  
